@@ -161,37 +161,35 @@ export default function App() {
 
   return (
     <div className="root">
-      {/* Header */}
-      <div className="header">
-        <h1 className="title">Expenses</h1>
-        <button
-          className="currency-btn"
-          onClick={() => setShowCurrencyPicker(p => !p)}
-          aria-expanded={showCurrencyPicker}
-          aria-label={`Currency: ${currency}`}
-        >
-          {currency} ▾
-        </button>
-      </div>
-
-      {/* Currency picker */}
-      {showCurrencyPicker && (
-        <div className="currency-picker">
-          {CURRENCIES.map(c => (
-            <button
-              key={c}
-              className={`currency-opt${c === currency ? ' active' : ''}`}
-              onClick={() => { setCurrency(c); setShowCurrencyPicker(false); }}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* This month */}
       <div className="spent">
-        <span className="spent-label">Spent in {monthName}</span>
+        <div className="header">
+          <span className="spent-label">Spent in {monthName}</span>
+          <button
+            className="currency-btn"
+            onClick={() => setShowCurrencyPicker(p => !p)}
+            aria-expanded={showCurrencyPicker}
+            aria-label={`Currency: ${currency}`}
+          >
+            {currency} ▾
+          </button>
+        </div>
+
+        {/* Currency picker */}
+        {showCurrencyPicker && (
+          <div className="currency-picker">
+            {CURRENCIES.map(c => (
+              <button
+                key={c}
+                className={`currency-opt${c === currency ? ' active' : ''}`}
+                onClick={() => { setCurrency(c); setShowCurrencyPicker(false); }}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
+
         <span className="spent-value">
           {spentWhole}<small>,{spentFraction} {symbol(currency)}</small>
         </span>
