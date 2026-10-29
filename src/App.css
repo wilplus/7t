@@ -65,6 +65,34 @@ body {
   color: #fff;
 }
 
+/* Expense / income toggle */
+.type-toggle {
+  display: flex;
+  gap: 4px;
+  background: #f2f2f7;
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 16px;
+}
+.type-opt {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 9px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #8e8e93;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.type-opt.active {
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.type-opt.active.expense { color: #1c1c1e; }
+.type-opt.active.income { color: #248a3d; }
+
 /* Input card */
 .card {
   background: #fff;
@@ -131,6 +159,27 @@ body {
   transition: opacity 0.15s;
 }
 .add-btn:active { opacity: 0.8; }
+.add-btn.income { background: #248a3d; }
+
+/* Totals */
+.totals {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.totals-cell {
+  flex: 1;
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+}
+.totals-cell .label { margin-bottom: 2px; }
+.totals-value { font-size: 20px; font-weight: 700; }
+.totals-value.income { color: #248a3d; }
+.totals-value.expense { color: #1c1c1e; }
 
 /* Summary */
 .summary-row {
@@ -152,6 +201,8 @@ body {
   font-size: 17px;
   font-weight: 700;
 }
+.total.negative { color: #ff3b30; }
+.balance-label { font-size: 13px; font-weight: 600; color: #8e8e93; margin-right: 6px; }
 
 /* List */
 .list { display: flex; flex-direction: column; gap: 8px; }
@@ -178,6 +229,7 @@ body {
   gap: 4px;
 }
 .expense-price { font-size: 17px; font-weight: 700; }
+.expense-item.income .expense-price { color: #248a3d; }
 .expense-currency { font-size: 12px; color: #8e8e93; font-weight: 500; }
 .delete-btn {
   background: none;
