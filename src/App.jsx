@@ -13,45 +13,96 @@ function save(key, val) {
 // Entries saved before incomes existed have no type and are expenses.
 const isIncome = e => e?.type === 'income';
 
+const money = (n, currency) =>
+  new Intl.NumberFormat('pl-PL', { style: 'currency', currency }).format(n);
+const number = n =>
+  new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const symbol = currency =>
+  new Intl.NumberFormat('pl-PL', { style: 'currency', currency })
+    .formatToParts(0).find(p => p.type === 'currency').value;
+
+const sameDay = (a, b) => a.toDateString() === b.toDateString();
+function dayLabel(date) {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(date, now)) return 'Today';
+  if (sameDay(date, yesterday)) return 'Yesterday';
+  return date.toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'short',
+    year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+  });
+}
+
 export default function App() {
   const [price, setPrice] = useState('');
   const [what, setWhat] = useState('');
   const [type, setType] = useState('expense');
   const [expenses, setExpenses] = useState(() => load('expenses', []));
   const [currency, setCurrency] = useState(() => load('currency', 'PLN'));
-  const [showList, setShowList] = useState(false);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [shake, setShake] = useState(null);
+  const [hint, setHint] = useState('');
+  const [armed, setArmed] = useState(null);
+  const [justAdded, setJustAdded] = useState(null);
+  const [toast, setToast] = useState(null);
   const priceRef = useRef(null);
   const whatRef = useRef(null);
+  const toastTimer = useRef(null);
 
   useEffect(() => { save('expenses', expenses); }, [expenses]);
   useEffect(() => { save('currency', currency); }, [currency]);
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
-  function triggerShake(field) {
+  function showToast(text, undo) {
+    clearTimeout(toastTimer.current);
+    setToast({ text, undo });
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }
+
+  function triggerShake(field, message) {
     setShake(field);
+    setHint(message);
     setTimeout(() => setShake(null), 400);
+  }
+
+  function switchType(next) {
+    setType(next);
+    setHint('');
+    priceRef.current?.focus();
   }
 
   function addExpense() {
     const trimmed = what.trim();
-    const parsed = parseFloat(price.replace(',', '.'));
+    const parsed = parseFloat(price.replace(/\s/g, '').replace(',', '.'));
 
-    if (!trimmed) { triggerShake('what'); whatRef.current?.focus(); return; }
-    if (!price || isNaN(parsed) || parsed <= 0) { triggerShake('price'); priceRef.current?.focus(); return; }
+    if (!price || isNaN(parsed) || parsed <= 0) { triggerShake('price', 'Enter an amount above 0.'); priceRef.current?.focus(); return; }
+    if (!trimmed) { triggerShake('what', 'Add a short description, like "coffee".'); whatRef.current?.focus(); return; }
 
     const entry = { id: Date.now(), type, price: parsed, what: trimmed, currency, date: new Date().toISOString() };
     setExpenses(prev => [entry, ...prev]);
+    setJustAdded(entry.id);
+    setArmed(null);
     setPrice('');
     setWhat('');
+    setHint('');
+    // Income is a rare detour: always come back to expense.
+    setType('expense');
+    showToast(
+      `Added ${isIncome(entry) ? 'income ' : ''}${money(parsed, currency)}`,
+      () => setExpenses(prev => prev.filter(e => e.id !== entry.id)),
+    );
     priceRef.current?.focus();
   }
 
   function deleteExpense(id) {
-    const entry = expenses.find(e => e.id === id);
-    if (window.confirm(`Remove this ${isIncome(entry) ? 'income' : 'expense'}?`)) {
-      setExpenses(prev => prev.filter(e => e.id !== id));
-    }
+    const index = expenses.findIndex(e => e.id === id);
+    if (index === -1) return;
+    const removed = expenses[index];
+    setExpenses(prev => prev.filter(e => e.id !== id));
+    setArmed(null);
+    showToast(`Deleted "${removed.what}"`, () =>
+      setExpenses(prev => [...prev.slice(0, index), removed, ...prev.slice(index)]));
   }
 
   async function exportXlsx() {
@@ -86,17 +137,41 @@ export default function App() {
     }
   }
 
-  const incomeTotal = expenses.filter(isIncome).reduce((s, e) => s + e.price, 0);
-  const expenseTotal = expenses.filter(e => !isIncome(e)).reduce((s, e) => s + e.price, 0);
-  const balance = incomeTotal - expenseTotal;
-  const fmt = n => Number.isInteger(n) ? n.toString() : n.toFixed(2);
+  // This month's summary, in the selected currency only.
+  const now = new Date();
+  const thisMonth = expenses.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+  const inCurrency = thisMonth.filter(e => e.currency === currency);
+  const spent = inCurrency.filter(e => !isIncome(e)).reduce((s, e) => s + e.price, 0);
+  const income = inCurrency.filter(isIncome).reduce((s, e) => s + e.price, 0);
+  const otherCurrencies = [...new Set(thisMonth.map(e => e.currency).filter(c => c !== currency))];
+  const monthName = now.toLocaleDateString('en-GB', { month: 'long' });
+  const [spentWhole, spentFraction] = number(spent).split(',');
+
+  // Feed grouped by day, newest first.
+  const groups = [];
+  for (const e of [...expenses].sort((a, b) => new Date(b.date) - new Date(a.date))) {
+    const date = new Date(e.date);
+    const last = groups[groups.length - 1];
+    if (last && sameDay(last.date, date)) last.items.push(e);
+    else groups.push({ date, items: [e] });
+  }
+
+  const incomeMode = type === 'income';
 
   return (
     <div className="root">
       {/* Header */}
       <div className="header">
         <h1 className="title">Expenses</h1>
-        <button className="currency-btn" onClick={() => setShowCurrencyPicker(p => !p)}>
+        <button
+          className="currency-btn"
+          onClick={() => setShowCurrencyPicker(p => !p)}
+          aria-expanded={showCurrencyPicker}
+          aria-label={`Currency: ${currency}`}
+        >
           {currency} ▾
         </button>
       </div>
@@ -116,105 +191,141 @@ export default function App() {
         </div>
       )}
 
-      {/* Input card */}
-      <div className="card">
-        <div className="type-toggle">
-          <button
-            className={`type-opt${type === 'expense' ? ' active expense' : ''}`}
-            onClick={() => { setType('expense'); priceRef.current?.focus(); }}
-          >
-            Expense
-          </button>
-          <button
-            className={`type-opt${type === 'income' ? ' active income' : ''}`}
-            onClick={() => { setType('income'); priceRef.current?.focus(); }}
-          >
-            Income
-          </button>
-        </div>
-        <div className="input-row">
-          <div className="field">
-            <label className="label">{type === 'income' ? 'Amount' : 'Price'}</label>
-            <input
-              ref={priceRef}
-              className={`price-input${shake === 'price' ? ' shake' : ''}`}
-              type="decimal"
-              inputMode="decimal"
-              placeholder="0.00"
-              value={price}
-              onChange={e => setPrice(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && whatRef.current?.focus()}
-              autoFocus
-            />
-          </div>
-          <div className="field field-what">
-            <label className="label">What</label>
-            <input
-              ref={whatRef}
-              className={`what-input${shake === 'what' ? ' shake' : ''}`}
-              type="text"
-              placeholder={type === 'income' ? 'salary, refund…' : 'coffee, groceries…'}
-              value={what}
-              onChange={e => setWhat(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addExpense()}
-            />
-          </div>
-        </div>
-        <button className={`add-btn${type === 'income' ? ' income' : ''}`} onClick={addExpense}>
-          {type === 'income' ? '+ Add income' : '+ Add expense'}
-        </button>
+      {/* This month */}
+      <div className="spent">
+        <span className="spent-label">Spent in {monthName}</span>
+        <span className="spent-value">
+          {spentWhole}<small>,{spentFraction} {symbol(currency)}</small>
+        </span>
+        {income > 0 && (
+          <span className="spent-sub">
+            Income <b className="in">+{money(income, currency)}</b> · Left{' '}
+            <b className={income - spent < 0 ? 'negative' : ''}>{money(income - spent, currency)}</b>
+          </span>
+        )}
+        {otherCurrencies.length > 0 && (
+          <span className="spent-sub">Not counted: entries in {otherCurrencies.join(', ')}</span>
+        )}
       </div>
 
-      {/* Totals */}
-      {expenses.length > 0 && (
-        <div className="totals">
-          <div className="totals-cell">
-            <span className="label">Income</span>
-            <span className="totals-value income">+{fmt(incomeTotal)}</span>
+      {/* Input card */}
+      <form
+        className={`card${incomeMode ? ' income' : ''}`}
+        noValidate
+        onSubmit={e => { e.preventDefault(); addExpense(); }}
+      >
+        {incomeMode && (
+          <div className="entry-mode">
+            <span>New income</span>
+            <button type="button" onClick={() => switchType('expense')}>Cancel</button>
           </div>
-          <div className="totals-cell">
-            <span className="label">Expenses</span>
-            <span className="totals-value expense">−{fmt(expenseTotal)}</span>
-          </div>
+        )}
+        <div className={`amount-row${shake === 'price' ? ' shake' : ''}`}>
+          <input
+            ref={priceRef}
+            id="amount"
+            className="price-input"
+            inputMode="decimal"
+            placeholder="0,00"
+            aria-label="Amount"
+            autoComplete="off"
+            value={price}
+            onChange={e => setPrice(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); whatRef.current?.focus(); } }}
+            autoFocus
+          />
+          <span className="amount-currency">{symbol(currency)}</span>
         </div>
-      )}
-
-      {/* Summary row */}
-      {expenses.length > 0 && (
-        <div className="summary-row">
-          <button className="list-toggle" onClick={() => setShowList(p => !p)}>
-            {showList ? 'Hide list' : `Show list (${expenses.length})`}
+        <input
+          ref={whatRef}
+          id="what"
+          className={`what-input${shake === 'what' ? ' shake' : ''}`}
+          type="text"
+          aria-label="What"
+          autoComplete="off"
+          placeholder={incomeMode ? 'Salary, refund…' : 'What was it?'}
+          value={what}
+          onChange={e => setWhat(e.target.value)}
+        />
+        {hint && <div className="hint" role="alert">{hint}</div>}
+        <button type="submit" className={`add-btn${incomeMode ? ' income' : ''}`}>
+          {incomeMode ? 'Add income' : 'Add expense'}
+        </button>
+        {!incomeMode && (
+          <button type="button" className="quiet-btn" onClick={() => switchType('income')}>
+            Add income instead
           </button>
-          <span className={`total${balance < 0 ? ' negative' : ''}`}>
-            <span className="balance-label">Balance</span>
-            {balance < 0 ? '−' : ''}{fmt(Math.abs(balance))} {currency}
-          </span>
-        </div>
-      )}
+        )}
+      </form>
 
-      {/* Expense list */}
-      {showList && (
+      {/* Entries by day */}
+      {groups.length === 0 ? (
+        <p className="empty">Nothing here yet. Your first expense will show up here.</p>
+      ) : (
         <div className="list">
-          {expenses.map(e => (
-            <div key={e.id} className={`expense-item${isIncome(e) ? ' income' : ''}`} onContextMenu={ev => { ev.preventDefault(); deleteExpense(e.id); }}>
-              <div className="expense-left">
-                <span className="expense-what">{e.what}</span>
-                <span className="expense-date">{new Date(e.date).toLocaleDateString('pl-PL')}</span>
+          {groups.map(g => {
+            const daySpent = g.items
+              .filter(e => !isIncome(e) && e.currency === currency)
+              .reduce((s, e) => s + e.price, 0);
+            return (
+              <div key={g.date.toDateString()} className="day">
+                <div className="day-head">
+                  <span>{dayLabel(g.date)}</span>
+                  {daySpent > 0 && <span>{money(daySpent, currency)}</span>}
+                </div>
+                <div className="day-group">
+                  {g.items.map(e => (
+                    <div
+                      key={e.id}
+                      className={`expense-item${isIncome(e) ? ' income' : ''}${e.id === justAdded ? ' new' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${e.what}, ${money(e.price, e.currency)}${isIncome(e) ? ', income' : ''}. Tap for options`}
+                      onClick={() => setArmed(a => (a === e.id ? null : e.id))}
+                      onKeyDown={ev => { if (ev.target === ev.currentTarget && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); setArmed(a => (a === e.id ? null : e.id)); } }}
+                      onAnimationEnd={() => setJustAdded(null)}
+                    >
+                      <span className="expense-what">{e.what}</span>
+                      {armed === e.id ? (
+                        <button
+                          type="button"
+                          className="delete-btn"
+                          onClick={ev => { ev.stopPropagation(); deleteExpense(e.id); }}
+                        >
+                          Delete
+                        </button>
+                      ) : (
+                        <span className="expense-price">
+                          {isIncome(e) ? '+' : ''}{number(e.price)}
+                          {e.currency !== currency && <span className="expense-currency"> {e.currency}</span>}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="expense-right">
-                <span className="expense-price">{isIncome(e) ? '+' : '−'}{fmt(e.price)}</span>
-                <span className="expense-currency">{e.currency}</span>
-              </div>
-              <button className="delete-btn" onClick={() => deleteExpense(e.id)}>✕</button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Export */}
       {expenses.length > 0 && (
-        <button className="export-btn" onClick={exportXlsx}>Export to Excel</button>
+        <button className="quiet-btn export-btn" onClick={exportXlsx}>Export to Excel</button>
       )}
+
+      {/* Toast */}
+      <div className={`toast${toast ? ' visible' : ''}`} role="status" aria-live="polite">
+        <span>{toast?.text}</span>
+        {toast?.undo && (
+          <button
+            type="button"
+            onClick={() => { toast.undo(); clearTimeout(toastTimer.current); setToast(null); }}
+          >
+            Undo
+          </button>
+        )}
+      </div>
     </div>
   );
 }
