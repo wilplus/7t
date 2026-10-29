@@ -120,9 +120,6 @@ button:focus-visible,
 .spent-value { font-size: 44px; font-weight: 700; letter-spacing: -1px; line-height: 1.1; }
 .spent-value small { font-size: 24px; font-weight: 600; color: var(--sub); letter-spacing: 0; margin-left: 2px; }
 .spent-sub { font-size: 14px; color: var(--sub); }
-.spent-sub b { font-weight: 600; color: var(--ink); }
-.spent-sub b.in { color: var(--green); }
-.spent-sub b.negative { color: var(--red); }
 
 /* Input card */
 .card {

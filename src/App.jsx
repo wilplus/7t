@@ -145,7 +145,6 @@ export default function App() {
   });
   const inCurrency = thisMonth.filter(e => e.currency === currency);
   const spent = inCurrency.filter(e => !isIncome(e)).reduce((s, e) => s + e.price, 0);
-  const income = inCurrency.filter(isIncome).reduce((s, e) => s + e.price, 0);
   const otherCurrencies = [...new Set(thisMonth.map(e => e.currency).filter(c => c !== currency))];
   const monthName = now.toLocaleDateString('en-GB', { month: 'long' });
   const [spentWhole, spentFraction] = number(spent).split(',');
@@ -197,12 +196,6 @@ export default function App() {
         <span className="spent-value">
           {spentWhole}<small>,{spentFraction} {symbol(currency)}</small>
         </span>
-        {income > 0 && (
-          <span className="spent-sub">
-            Income <b className="in">+{money(income, currency)}</b> · Left{' '}
-            <b className={income - spent < 0 ? 'negative' : ''}>{money(income - spent, currency)}</b>
-          </span>
-        )}
         {otherCurrencies.length > 0 && (
           <span className="spent-sub">Not counted: entries in {otherCurrencies.join(', ')}</span>
         )}
