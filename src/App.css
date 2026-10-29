@@ -119,7 +119,6 @@ button:focus-visible,
 .spent-label { font-size: 15px; font-weight: 600; color: var(--sub); }
 .spent-value { font-size: 44px; font-weight: 700; letter-spacing: -1px; line-height: 1.1; }
 .spent-value small { font-size: 24px; font-weight: 600; color: var(--sub); letter-spacing: 0; margin-left: 2px; }
-.spent-sub { font-size: 14px; color: var(--sub); }
 
 /* Input card */
 .card {
@@ -173,7 +172,7 @@ button:focus-visible,
 }
 .amount-currency { font-size: 20px; font-weight: 600; color: var(--sub); }
 .what-input {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 500;
   color: var(--ink);
   border: none;
@@ -226,14 +225,11 @@ button:focus-visible,
 .list { display: flex; flex-direction: column; gap: 14px; }
 .day { display: flex; flex-direction: column; gap: 6px; }
 .day-head {
-  display: flex;
-  justify-content: space-between;
   font-size: 13px;
   font-weight: 600;
   color: var(--sub);
   padding: 0 4px;
 }
-.day-head span:last-child { font-weight: 500; }
 .day-group {
   background: var(--card);
   border-radius: 14px;

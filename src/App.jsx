@@ -145,7 +145,6 @@ export default function App() {
   });
   const inCurrency = thisMonth.filter(e => e.currency === currency);
   const spent = inCurrency.filter(e => !isIncome(e)).reduce((s, e) => s + e.price, 0);
-  const otherCurrencies = [...new Set(thisMonth.map(e => e.currency).filter(c => c !== currency))];
   const monthName = now.toLocaleDateString('en-GB', { month: 'long' });
   const [spentWhole, spentFraction] = number(spent).split(',');
 
@@ -196,9 +195,6 @@ export default function App() {
         <span className="spent-value">
           {spentWhole}<small>,{spentFraction} {symbol(currency)}</small>
         </span>
-        {otherCurrencies.length > 0 && (
-          <span className="spent-sub">Not counted: entries in {otherCurrencies.join(', ')}</span>
-        )}
       </div>
 
       {/* Input card */}
@@ -257,15 +253,9 @@ export default function App() {
       ) : (
         <div className="list">
           {groups.map(g => {
-            const daySpent = g.items
-              .filter(e => !isIncome(e) && e.currency === currency)
-              .reduce((s, e) => s + e.price, 0);
             return (
               <div key={g.date.toDateString()} className="day">
-                <div className="day-head">
-                  <span>{dayLabel(g.date)}</span>
-                  {daySpent > 0 && <span>{money(daySpent, currency)}</span>}
-                </div>
+                <div className="day-head">{dayLabel(g.date)}</div>
                 <div className="day-group">
                   {g.items.map(e => (
                     <div
