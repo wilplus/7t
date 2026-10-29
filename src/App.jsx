@@ -49,10 +49,23 @@ export default function App() {
   const priceRef = useRef(null);
   const whatRef = useRef(null);
   const toastTimer = useRef(null);
+  const jumpTimer = useRef(null);
 
   useEffect(() => { save('expenses', expenses); }, [expenses]);
   useEffect(() => { save('currency', currency); }, [currency]);
-  useEffect(() => () => clearTimeout(toastTimer.current), []);
+  useEffect(() => () => { clearTimeout(toastTimer.current); clearTimeout(jumpTimer.current); }, []);
+
+  // The phone's number pad has no Next key, so move on to "What" by itself:
+  // right away once cents are typed, or after a short pause on a whole amount.
+  function changePrice(value) {
+    setPrice(value);
+    clearTimeout(jumpTimer.current);
+    const parsed = parseFloat(value.replace(/\s/g, '').replace(',', '.'));
+    if (isNaN(parsed) || parsed <= 0) return;
+    const jump = () => { if (document.activeElement === priceRef.current) whatRef.current?.focus(); };
+    if (/[.,]\d{2}$/.test(value)) jump();
+    else if (!/[.,]$/.test(value)) jumpTimer.current = setTimeout(jump, 1200);
+  }
 
   function showToast(text, undo) {
     clearTimeout(toastTimer.current);
@@ -83,6 +96,7 @@ export default function App() {
     setExpenses(prev => [entry, ...prev]);
     setJustAdded(entry.id);
     setArmed(null);
+    clearTimeout(jumpTimer.current);
     setPrice('');
     setWhat('');
     setHint('');
@@ -145,7 +159,6 @@ export default function App() {
   });
   const inCurrency = thisMonth.filter(e => e.currency === currency);
   const spent = inCurrency.filter(e => !isIncome(e)).reduce((s, e) => s + e.price, 0);
-  const monthName = now.toLocaleDateString('en-GB', { month: 'long' });
   const [spentWhole, spentFraction] = number(spent).split(',');
 
   // Feed grouped by day, newest first.
@@ -164,7 +177,9 @@ export default function App() {
       {/* This month */}
       <div className="spent">
         <div className="header">
-          <span className="spent-label">Spent in {monthName}</span>
+          <span className="spent-value" aria-label={`Spent this month: ${money(spent, currency)}`}>
+            {spentWhole}<small>,{spentFraction} {symbol(currency)}</small>
+          </span>
           <button
             className="currency-btn"
             onClick={() => setShowCurrencyPicker(p => !p)}
@@ -189,10 +204,6 @@ export default function App() {
             ))}
           </div>
         )}
-
-        <span className="spent-value">
-          {spentWhole}<small>,{spentFraction} {symbol(currency)}</small>
-        </span>
       </div>
 
       {/* Input card */}
@@ -217,8 +228,8 @@ export default function App() {
             aria-label="Amount"
             autoComplete="off"
             value={price}
-            onChange={e => setPrice(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); whatRef.current?.focus(); } }}
+            onChange={e => changePrice(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(jumpTimer.current); whatRef.current?.focus(); } }}
             autoFocus
           />
           <span className="amount-currency">{symbol(currency)}</span>
